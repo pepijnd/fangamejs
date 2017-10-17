@@ -1,0 +1,22 @@
+[package]
+name = "mandelbrot-rust"
+version = "0.1.0"
+authors = ["Pepijn Dragt <pepijn.dragt@gmail.com>"]
+
+[dependencies]
+palette = "0.2"
+time = "0.1.38"
+threadpool = "1.0"
+simd = "0.2.0"
+
+[dependencies.sdl2]
+version = "0.30"
+default-features = false
+features = ["ttf","image","gfx","mixer"]
+
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+debug = true
+
