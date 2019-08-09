@@ -2,15 +2,11 @@
 #![allow(dead_code)]
 #![allow(unused_mut)]
 
-#![feature(iterator_step_by)]
-#![feature(test)]
-extern crate test;
-
 extern crate palette;
 extern crate sdl2;
 extern crate time;
 extern crate threadpool;
-extern crate simd;
+extern crate packed_simd;
 
 use threadpool::ThreadPool;
 use std::sync::mpsc::channel;
@@ -18,9 +14,12 @@ use std::env;
 use std::time::Duration;
 use std::collections::HashSet;
 
-use simd::x86::avx::f64x4;
-use simd::x86::avx::bool64ix4;
-use simd::x86::avx::i64x4;
+use packed_simd::{
+    Simd, 
+    f64x4,
+    i64x4,
+    FromCast,
+    };
 
 use palette::Hue;
 
@@ -32,6 +31,7 @@ use sdl2::pixels;
 use sdl2::rect::{Point, Rect};
 use sdl2::video::{Window, WindowContext};
 use sdl2::render::{Canvas, Texture, TextureCreator};
+use sdl2::mouse::MouseButton;
 
 use sdl2::gfx::primitives::DrawRenderer;
 
@@ -112,7 +112,7 @@ impl Mandelbrot {
             if !mask.any() {
                 break
             }
-            count = count + mask.to_i().to_repr();
+            count = count + i64x4::from_cast(mask);
 
             z = Mandelbrot::iterate(z, input);
         }
@@ -224,17 +224,23 @@ fn main() {
         .build().unwrap();
     let texture_creator = canvas.texture_creator();
 
-    let mut x = -0.7442;
-    let mut y = -0.1042;
-    let mut scale = 0.0005;
+    let mut update = true;
 
-    let mandelbrot = Mandelbrot::new(x, y, scale, 500, 5, 0);
-    let man_texture = mandelbrot.render(&mut canvas, &texture_creator);
+    let mut x: f64 = -0.5;
+    let mut y: f64 = 0.0;
+    let mut scale: f64 = 1.75;
 
-    canvas.copy(&man_texture, None, None).unwrap();
-    canvas.present();
+    let mut mstart_x = 0;
+    let mut mstart_y = 0;
+
+    let mut mcurr_x = 0;
+    let mut mcurr_y = 0;
+
+    let mut drawrect = false;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
+
+    let mut man_texture = texture_creator.create_texture_target(None, 1, 1).unwrap();
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -245,82 +251,86 @@ fn main() {
 
                 Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
                     x -= scale / 3.0;
-                    let mandelbrot = Mandelbrot::new(x, y, scale, 500, 5, 0);
-                    let man_texture = mandelbrot.render(&mut canvas, &texture_creator);
-                    canvas.copy(&man_texture, None, None).unwrap();
-                    canvas.present();
+                    update = true;
                 }
 
                 Event::KeyDown { keycode: Some(Keycode::Right), ..} => {
                     x += scale / 3.0;
-                    let mandelbrot = Mandelbrot::new(x, y, scale, 500, 5, 0);
-                    let man_texture = mandelbrot.render(&mut canvas, &texture_creator);
-                    canvas.copy(&man_texture, None, None).unwrap();
-                    canvas.present();
+                    update = true;
                 }
 
                 Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
                     y -= scale / 3.0;
-                    let mandelbrot = Mandelbrot::new(x, y, scale, 500, 5, 0);
-                    let man_texture = mandelbrot.render(&mut canvas, &texture_creator);
-                    canvas.copy(&man_texture, None, None).unwrap();
-                    canvas.present();
+                    update = true;
                 }
 
                 Event::KeyDown { keycode: Some(Keycode::Down), ..} => {
                     y += scale / 3.0;
-                    let mandelbrot = Mandelbrot::new(x, y, scale, 500, 5, 0);
-                    let man_texture = mandelbrot.render(&mut canvas, &texture_creator);
-                    canvas.copy(&man_texture, None, None).unwrap();
-                    canvas.present();
+                    update = true;
                 }
 
                 Event::KeyDown { keycode: Some(Keycode::KpPlus), ..} => {
                     scale *= 0.97;
-                    let mandelbrot = Mandelbrot::new(x, y, scale, 500, 5, 0);
-                    let man_texture = mandelbrot.render(&mut canvas, &texture_creator);
-                    canvas.copy(&man_texture, None, None).unwrap();
-                    canvas.present();
+                    update = true;
                 }
 
                 Event::KeyDown { keycode: Some(Keycode::KpMinus), ..} => {
                     scale /= 0.97;
-                    let mandelbrot = Mandelbrot::new(x, y, scale, 500, 5, 0);
-                    let man_texture = mandelbrot.render(&mut canvas, &texture_creator);
-                    canvas.copy(&man_texture, None, None).unwrap();
-                    canvas.present();
+                    update = true;
                 }
+
+                Event::KeyDown { keycode: Some(Keycode::Home), ..} => {
+                    x = -0.5;
+                    y = 0.0;
+                    scale = 1.75;
+                    update = true;
+                }
+
+                Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
+                    mstart_x = x;
+                    mstart_y = y;
+                    drawrect = true;
+                }
+
+                Event::MouseButtonUp { mouse_btn: MouseButton::Left, .. } => {
+                    drawrect = false;
+
+                    let xx = ((mstart_x + mcurr_x)/2) as f64 - (WINDOW_WIDTH / 2) as f64;
+                    let yy = ((mstart_y + mcurr_y)/2) as f64 - (WINDOW_HEIGHT / 2) as f64;
+
+                    let ratio = WINDOW_WIDTH as f64 / WINDOW_HEIGHT as f64;
+                    x += (scale * ratio) * (xx as f64 / WINDOW_WIDTH as f64);
+                    y += (scale / ratio) * (yy as f64 / WINDOW_HEIGHT as f64);
+                    
+                    let w = (mcurr_x - mstart_x) as f64 / WINDOW_WIDTH as f64;
+                    let h = (mcurr_y - mstart_y) as f64 / WINDOW_HEIGHT as f64;
+
+                    scale *= (w+h)/2.0;
+
+                    update = true;
+                }
+
+                Event::MouseMotion { x, y, .. } => {
+                    mcurr_x = x;
+                    mcurr_y = y;  
+                }
+
                 _ => {}
             }
         }
 
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use test::{Bencher, BenchMode};
-
-    #[test]
-    fn mandelbrot_render() {
-        for _ in 0..200 {
-
-            let surface = sdl2::surface::Surface::new(WINDOW_WIDTH, WINDOW_HEIGHT, sdl2::pixels::PixelFormatEnum::RGB24).unwrap();
-            let mut canvas = sdl2::render::Canvas::from_surface(surface).unwrap();
-            let text_crt = canvas.texture_creator();
-
-            let mut x = 0.428860;
-            let mut y = -0.231332;
-            let scale = 0.000005;
-
-            let mandelbrot = Mandelbrot::new(x, y, scale, 5000, 5, 0);
-            let man_texture = mandelbrot.render(&mut canvas, &text_crt);
-            canvas.copy(&man_texture, Some(Rect::new(WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32, WINDOW_WIDTH, WINDOW_HEIGHT)), None).unwrap();
-
-            test::black_box(canvas);
+        if update {
+            let mandelbrot = Mandelbrot::new(x, y, scale, 500, 5, 0);
+            man_texture = mandelbrot.render(&mut canvas, &texture_creator);
+            update = false;
         }
+        canvas.copy(&man_texture, None, None).unwrap();
+        if drawrect {
+            canvas.set_draw_color(pixels::Color::RGB(0, 0, 0));
+            canvas.draw_rect(Rect::new(mstart_x, mstart_y, (mcurr_x-mstart_x) as u32, (mcurr_y-mstart_y) as u32)).unwrap();
+        }
+        canvas.present();
+
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }

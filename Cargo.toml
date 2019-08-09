@@ -7,7 +7,7 @@ authors = ["Pepijn Dragt <pepijn.dragt@gmail.com>"]
 palette = "0.2"
 time = "0.1.38"
 threadpool = "1.0"
-simd = "0.2.0"
+packed_simd = "0.3.3"
 
 [dependencies.sdl2]
 version = "0.30"
