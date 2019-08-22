@@ -1,4 +1,4 @@
-use packed_simd::{f64x4, u64x4, m64x4};
+use packed_simd::{f64x4, u64x4};
 use rug::{Assign, Complex, Float};
 
 #[derive(Debug, Copy, Clone)]
@@ -19,7 +19,7 @@ pub struct BoundsSettings {
 }
 
 impl BoundsSettings {
-    pub fn new<'a>(limit: u64, precision: u32) -> BoundsSettings {
+    pub fn new(limit: u64, precision: u32) -> BoundsSettings {
         BoundsSettings { limit, precision }
     }
 }
@@ -76,8 +76,8 @@ impl BoundsChecker for Complex {
         let mut z = Complex::with_val(settings.precision, (0.0, 0.0));
         let mut iter = 0;
         while iter < settings.limit {
-            let s = Complex::with_val(settings.precision, z.square_ref());
-            z.assign(s + &c);
+            let z_temp = Complex::with_val(settings.precision, z.square_ref());
+            z.assign(z_temp + &c);
             buffer.assign(z.norm_ref());
             if buffer.real() < &4 {
                 iter += 1;

@@ -4,18 +4,15 @@ version = "0.1.0"
 authors = ["Pepijn Dragt <pepijn.dragt@gmail.com>"]
 
 [dependencies]
-palette = "0.2"
-time = "0.1.38"
-threadpool = "1.0"
+palette = "0.4.1"
+time = "0.1.42"
+threadpool = "1.7.1"
 packed_simd = "0.3.3"
-num = "0.2.0"
 rug = "1.5.2"
-bigdecimal = "0.1.0"
-
-[dependencies.sdl2]
-version = "0.30"
-default-features = false
-features = ["ttf","image","gfx","mixer"]
+imgui = "0.1.0"
+imgui-glium-renderer = "0.1.0"
+imgui-winit-support = "0.1.0"
+glium = { version = "0.25.1", default-features = false, features = ["glutin"] }
 
 [profile.dev]
 opt-level = 3
